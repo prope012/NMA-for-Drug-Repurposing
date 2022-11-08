@@ -13,6 +13,7 @@ These functions can be used to:
 - Fit the proposed NMA models for 2 indications to a given data set
 - Compute summary statistics (Bias, variance, RMSE, average width of the 95% credible interval, and coverage probability)
 - Compute probability of success for a future clinical trial
+\\
 The purpose, inputs, and outputs of each function are included in this R script.
 
 # 2. NMA-Simulation-Example.R:
