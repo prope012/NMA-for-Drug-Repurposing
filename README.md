@@ -6,7 +6,14 @@ These files allow the user to replicate the simulation study in the above paper.
 
 # Brief Description of these Files:
 # 1. NMA-Simulation-Functions.R
-These functions can be used to randomly generate a set of indication-specific basic parameters with a certain amount of correlation, randomly generate a data set with binary outcomes according to a user-specified network, fit a standard contrast-based NMA model to data from each indication, fit each proposed NMA model for 2 indications, compute summary statistics if performing a simulation study (bias, variance, RMSE, average width of the 95% credible interval, and coverage probability), and compute probability of success. 
+These functions can be used to:
+- Randomly generate a set of indication-specific basic parameters using a desired amount of correlation
+- Randomly generate a data set with binary outcomes according to a user-specified network
+- Fit a standard contrast-based NMA model to data from each indication
+- Fit the proposed NMA models for 2 indications to a given data set
+- Compute summary statistics (Bias, variance, RMSE, average width of the 95% credible interval, and coverage probability)
+- Compute probability of success for a future clinical trial
+The purpose, inputs, and outputs of each function are included in this R script.
 
 # 2. NMA-Simulation-Example.R:
 This R script demonstrates how to use the functions in NMA-Simualtion-Functions.R to replicate our simulation study. They also demonstrate how to apply the proposed methodology in practice, including how to compute PoS. 
