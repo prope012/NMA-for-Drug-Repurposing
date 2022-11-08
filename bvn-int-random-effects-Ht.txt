@@ -1,0 +1,82 @@
+############## BVN Fixed-Effects NMA Model for Two Indications #################
+
+model{
+	
+	### Loop through studies
+	for(i in 1:ns){
+
+		w[i,1] <- 0					# multi-arm adjustment; always 0 for study-specific baseline arm
+		mu[i] ~dt(0,1/(2.5)^2,7)				# weakly informative Student-t priors for each study-specific baseline (nuisance parameter)
+		delta[i,t[i,1]] <- 0				# the random effect is 0 for study-specific baseline arms
+	
+		### for each study, loop through each arm
+		for(k in 1:na[i]){
+			r[i,k] ~ dbin(p[i,t[i,k]], n[i,k])				# binomial likelihood for events in each arm
+			logit(p[i,t[i,k]]) <- mu[i] + delta[i,t[i,k]]			# mean now dependent on indication
+		}
+	
+		### for each study, loop through non-control arms while taking into account indication 
+		for(k in 2:na[i]){
+			delta[i,t[i,k]] ~ dnorm(md[i,t[i,k]], taud[i,t[i,k]]) 				# random effects; trial-specific log-ORs
+			md[i,t[i,k]] <- d[t[i,k],indication[i]] - d[t[i,1],indication[i]] + sw[i,k]	# md is a functional parameter; defined by basic parameters d which compare treatment k to A; 
+			taud[i,t[i,k]] <- tau[indication[i]]*2*(k-1)/k			      		# precision of LOR distribution; equal to tau when there are only 2 arms (homogeneous variance assumption)
+			w[i,k] <- (delta[i,t[i,k]] - d[t[i,k],indication[i]] + d[t[i,1],indication[i]]) # adjustment, multi-arm RCTs
+	     		sw[i,k] <- sum(w[i, 1:(k-1)])/(k-1)						# equal to 0 when only 2 arms
+		}
+	}
+
+	### Constraints - treatment effect is zero for reference treatment in both indications
+	d[1,1] <- 0
+	d[1,2] <- 0
+
+	### priors for d's
+	for(k in 2:nt){
+		d[k,1:2] ~ dmnorm(mud[k,1:2], Prec)
+	}
+
+	### express mud[1:2] via beta0 and beta2
+	for(k in 2:nt){
+		mud[k,1] <- beta0 - 0.5*beta2 + beta1*(class[k]-1.5)
+		mud[k,2] <- beta0 + 0.5*beta2 + beta1*(class[k]-1.5) + beta3*(class[k]-1.5)
+	}
+
+	### priors for between-trial SD (sd of the random effects)
+	for(i in 1:2){
+		sdd[i] ~ dt(0,1/(2.5)^2,7)T(0,)
+		tau[i] <- 1/pow(sdd[i],2)
+	}
+
+	### priors for the regression parameters
+	beta0 ~ dt(0,1/(2.5)^2,7)
+	beta2 ~ dt(0,1/(2.5)^2,7)
+	beta1 ~ dt(0,1/(2.5)^2,7)
+	beta3 ~ dt(0,1/(2.5)^2,7)
+
+	### elements of the covariance matrix
+	Sigma[1,1] <- sd[1]^2
+	Sigma[2,2] <- sd[2]^2
+	Sigma[1,2] <- sd[1]*sd[2]*rho
+	Sigma[2,1] <- sd[1]*sd[2]*rho
+
+	### priors for the elements of the covariance matrix
+	sd[1] ~ dnorm(0,1)T(0,)
+	sd[2] ~ dnorm(0,1)T(0,)
+	rho ~ dunif(0,1)
+
+	### take inverse of covariance matrix to get precision matrix
+	Prec <- inverse(Sigma)
+
+	### pairwise ORs vs. placebo for each indication
+	for(k in 1:nt){
+		or1[1,k] <- exp(d[k,1])
+		or2[1,k] <- exp(d[k,2])
+	}
+
+	### draw from the posterior predictive distribution for all treatments and indications
+	for(k in 1:nt){
+		for(i in 1:2){
+			d.new[k,i] ~ dnorm(d[k,i],pow(sdd[i],-2))
+		}
+	}
+
+}
