@@ -4,6 +4,7 @@
 ##################### in a new indication" ########################
 ###################################################################
 
+#renv::init()
 #------------------------------------------------------#
 #-------------- Load Required Packages ----------------#
 #------------------------------------------------------#
@@ -15,8 +16,9 @@ library(mcmcplots)
 library(ggthemes)
 library(ggplot2)
 
-# The name of the directory containing the relevant jags scripts
-jags.script.dir <- "C:/Users/jenni/OneDrive/Documents/Research/Work With Tom/Network Meta Analysis/Simulation Study Code_New/Jags Scripts/"
+# specify directory for jags scripts
+work.dir <- "placeholder"
+jags.script.dir <- paste(work.dir, "JAGS-Scripts/",sep="")
 
 #------------------------------------------------------#
 #---------- Generate Correlated Basic Parameters ------#
@@ -24,8 +26,8 @@ jags.script.dir <- "C:/Users/jenni/OneDrive/Documents/Research/Work With Tom/Net
 
 ### Purpose: This function generates correlated basic parameters (LORs relative to placebo) across indications using a linear mixed model of the following form:
 #            LORs = beta0 + beta1*I{class = 2} + beta2*I{indication = 2} + gamma_k + Sigma_{ki}.
-#            Using these randomly generated values, the values of the LORs comparing the active treatment to the baseline treatment in each study in the network diagram in Figure 1 are determined.
-#            Baseline effect parameters are also generated according to the network diagram in Figure 1.
+#            Using these randomly generated values, the values of the LORs comparing the active treatment to the baseline treatment in each study in the network diagram in Figure 2 are determined.
+#            Baseline effect parameters are also generated according to the network diagram in Figure 2.
 
 ### Inputs:
 #   1) beta0: The value of the intercept in the linear mixed model.
@@ -413,7 +415,7 @@ get.LOOCV.dat <- function(J, num.arms, indication, trt, n, d, mu, sigma = c(NA,N
 #------------------------------------------------------#
 
 ### Purpose: The purpose of this function is to estimate the probability of success (PoS) for a candidate treatment.
-#            A trial is deemed successful if it achieves statistical significance (two-sided p-value < 0.05).
+#            A trial is deemed successful if it achieves statistical significance (two-sided p-value <= alpha) and clinical significance (observed treatment effect > some threshold).
 #            The primary analysis uses fisher's exact test. 
 
 ### Inputs:
@@ -422,37 +424,42 @@ get.LOOCV.dat <- function(J, num.arms, indication, trt, n, d, mu, sigma = c(NA,N
 #   3) mvn: An indicator for whether a mvn model was fit (TRUE for mvn and FALSE otherwise).
 #   4) nt: The total number of treatments analyzed by fitted.jags.mod.
 #   5) piC: The probability of response for the reference treatment obtained from external cohort studies or expert opinion for indication 2.
-#   6) piT: The probability of response for trt.num that yields a clinically meaningful treatment effect.
+#   6) n: The sample size per arm.
 #   7) pow: The desired power of the design. Default is 0.90.
 #   8) two.sided.TIE: the two-sided type I error rate of the design. Default is 0.05.
-#   9) Number of posterior predictive samples to use when approximating PoS via MCMC integration. Default is 10000.
+#   9) niters: Number of posterior predictive samples to use when approximating PoS via MCMC integration. Default is 10000.
+#   10) delta: a clinically meaningful log-odds ratio; that is, the efficacy threshold that you wish to surpass in the future study.
 
 ### Outputs: The PoS for the candidate treatment.
 
-get.pos <- function(fitted.jags.mod, trt.num, mvn = FALSE, nt,
-                    piC, piE, pow = 0.90, two.sided.TIE = 0.05, niters = 10000){
-  
-  ### approximate sample size using power.prop.test
-  n <- ceiling(power.prop.test(p1 = piC, p2 = piE, power = pow, sig.level = two.sided.TIE)$n)
+get.pos <- function(fitted.jags.mod, trt.num, mvn = FALSE, nt, piC, n, two.sided.TIE = 0.05, delta, niters = 10000){
   
   ### Grab samples from the posterior predictive distribution for the candidate treatment.
   if(mvn == F){
-    post.samps <- sapply(fitted.jags.mod$BUGSoutput$sims.list$d.new[,,2][,trt.num], function(x) (exp(x)*(piC/(1-piC)))/(1+(exp(x)*(piC/(1-piC)))))
+    post.samps.deltaRR <- sapply(fitted.jags.mod$BUGSoutput$sims.list$d.new[,,2][,trt.num], function(x) (exp(x)*(piC/(1-piC)))/(1+(exp(x)*(piC/(1-piC)))))[1:niters]
   } else{
-    post.samps <- sapply(fitted.jags.mod$BUGSoutput$sims.list$d.new[,seq(2,nt*2,2)][,trt.num], function(x) (exp(x)*(piC/(1-piC)))/(1+(exp(x)*(piC/(1-piC)))))
+    post.samps.deltaRR <- sapply(fitted.jags.mod$BUGSoutput$sims.list$d.new[,seq(2,nt*2,2)][,trt.num], function(x) (exp(x)*(piC/(1-piC)))/(1+(exp(x)*(piC/(1-piC)))))[1:niters]
   }
   
   ### Simulate trial using n, piC, and each piE_hat
-  post.samps <- post.samps[1:niters]
-  Success <- sapply(post.samps, function(x){
-    trial.dat <- data.frame(y = c(rbinom(n, 1, piC), rbinom(n, 1, x)),
-                            grp = c(rep(0,n),rep(1,n)))
-    trial.dat$y <- factor(trial.dat$y, levels = c(0,1))
-    trial.dat$grp <- factor(trial.dat$grp, levels = c(0,1))
-    res = fisher.test(matrix(table(trial.dat),ncol = 2))$p.value
-    return(res<two.sided.TIE)
-  })
+  RR <- sapply(post.samps.deltaRR, function(x){
+    trial.dat <- data.frame(y = c(rbinom(n, 1, piC), rbinom(n, 1, x)), grp = c(rep(0,n),rep(1,n)))
+    trial.dat$y <- factor(trial.dat$y, levels = c(0,1)); trial.dat$grp <- factor(trial.dat$grp, levels = c(0,1))
+    rr <- tapply(trial.dat$y==1, trial.dat$grp, mean)
+    pval <- fisher.test(matrix(table(trial.dat),ncol = 2))$p.value
+    return(c(rr,pval))})
   
-  ### Return proportion of trials with p-value<two-sided threshold (i.e. PoS)
-  return(mean(Success))
+  # transform to LOR
+  LOR <- log(RR[2,]/(1-RR[2,])) - log(RR[1,]/(1-RR[1,]))
+  
+  # determine if pval < 0.05
+  StatSig <- RR[3,] < 0.05
+  
+  # determine if clinically significant
+  ClinSig <- LOR > delta
+  
+  ### Pr(Stat Sig + Clin Sig)
+  return(mean(StatSig * ClinSig))
+  
 }
+#renv::snapshot()
