@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.10069879.svg)](https://doi.org/10.5281/zenodo.10069879)
+
 # Title of Paper:
 Network Meta-Analysis to Predict the Efficacy of an Approved Treatment in a New Indication
 
