@@ -29,5 +29,5 @@ This folder contains the Jags scripts required to implement each standard CB-NMA
 # 4. pso-psa-data.csv:
 This CSV file contains the dataset that was used in our motivating example. This dataset has been de-identified for confidentiality reasons.
 
-# 6. renv.lock:
+# 5. renv.lock:
 This is a lock file produced by the Rpackage 'renv' that allows users to run our code using the same package versions.
