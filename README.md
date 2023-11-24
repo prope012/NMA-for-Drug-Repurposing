@@ -26,10 +26,7 @@ In addition, this file demonstrates how to apply the proposed methodology in pra
 # 3. "JAGS CODE" Folder:
 This folder contains the Jags scripts required to implement each standard CB-NMA model and each proposed NMA model for 2 indications. 
 
-# 4. example-data.csv:
-This CSV file contains an artifical dataset that is suitable for this methodology. This dataset was used in our simulation study.
-
-# 5. pso-psa-data.csv:
+# 4. pso-psa-data.csv:
 This CSV file contains the dataset that was used in our motivating example. This dataset has been de-identified for confidentiality reasons.
 
 # 6. renv.lock:
