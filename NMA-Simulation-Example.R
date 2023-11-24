@@ -10,7 +10,7 @@
 #-----------------------------------------------#
 
 ### source in the NMA-Simulation-Functions.R script
-work.dir <- "placeholder"
+work.dir <- "./"
 source(paste(work.dir,"NMA-Simulation-Functions.R",sep=""))
 library(tidyr)
 library(dplyr)
@@ -35,10 +35,10 @@ var.g <- sapply(corr, function(x) get.var(x)[1])
 var.e <- sapply(corr, function(x) get.var(x)[2])
 
 ### Number of randomly generated sets of d's
-nsims <- 2
+nsims <- 50
 
 ### Define number of iterations (number of data sets within a set of d's)
-niters <- 10
+niters <- 200
 
 
 #---------------------------------------------------------------------#
@@ -102,42 +102,53 @@ for(i in 1:nsims){
                                                 nt = 9, inds = "Both", mod.type = "mixed")
 }
 
-#-------------------------------------------------------#
-#----- Compute PoS for Treatment 2 in Indication 2 -----#
-#-------------------------------------------------------#
 
-### PoS should be computed using a real data set. For this example, a data set will be randomly generated.
-set.seed(28)
-foo <- sim.pars(beta0 = 3.4, beta1 = 1.3, beta2 = -1.6, sigma.g = sqrt(var.g[3]), sigma.e = sqrt(var.e[3]), class.ind = c(1,2,2,2,1,2,1,2))
-pos.dat <- get.LOOCV.dat(J = 75, 
-                       num.arms = rep(2,75),
-                       indication = c(rep(1,40), rep(2,35)),
-                       trt = rbind(ind1.trt, ind2.trt),
-                       n = matrix(c(rep(60,80),rep(38,70)), nrow = 75, ncol = 2, byrow = T),
-                       d = rbind(foo$d1_vals, foo$d2_vals),
-                       mu <- c(foo$mu1,foo$mu2),
-                       sigma = c(0.25,0.25),
-                       niters = 1)$'Minus Trt 2'
+#-----------------------------------------------------------------------#
+#----------- Replicate the Analysis for the Motivating Example ---------#
+#-----------------------------------------------------------------------#
 
-### Prepare data for NMA
-pos.dat <- pos.dat[[1]]
-ns <- length(unique(pos.dat$study)) # number of studies
-na <- (pos.dat %>% group_by(study) %>% dplyr::summarize(na = length(study)))$na # number of arms per study
-r <- NULL; for(i in 1:max(na)){r <- cbind(r, (pos.dat %>% group_by(study) %>% summarise(r=r[i]))$r)} # wide format for number of successes
-n <- NULL; for(i in 1:max(na)){n <- cbind(n, (pos.dat %>% group_by(study) %>% summarise(n=n[i]))$n)} # wide format for number participants
-t <- NULL; for(i in 1:max(na)){t <- cbind(t, (pos.dat %>% group_by(study) %>% summarise(t=trt[i]))$t)} # wide format for treatments
-nt <- max(pos.dat$trt) # number of treatments in the network 
-indication <- (pos.dat %>% group_by(study) %>% dplyr::summarize(ind = indication[1]))$ind # indication indicator
+### Import pso-psa-dat.csv
+pso.psa.data <- read.csv(paste(work.dir,"pso-psa-data.csv",sep=""))
 
-### Fit desired model
-jags.script <- paste("Two Indication Models/","mixed","-random-effects-","Ht",".txt",sep="")
-params = c("d","beta0","beta2","gamma","sdg","sde","sdd","d.new")
-data <- list(ns = ns, r = r, t = t, n = n, nt=nt, indication=indication, na = na)
-jags.fit =jags(data = data, n.burnin = 5000, n.iter = 15000, n.thin = 1, jags.module = "glm",
-               n.chains = 2, parameters.to.save = params, model.file = paste(jags.script.dir,jags.script,sep=""),
-               quiet = TRUE, progress.bar = "none")
+### Replace treatment letters with numbers
+pso.psa.data$treatment <- case_when(pso.psa.data$treatment == "A" ~ 1,
+                                    pso.psa.data$treatment == "B" ~ 2,
+                                    pso.psa.data$treatment == "C" ~ 3,
+                                    pso.psa.data$treatment == "D" ~ 4,
+                                    pso.psa.data$treatment == "E" ~ 5,
+                                    pso.psa.data$treatment == "F" ~ 6,
+                                    pso.psa.data$treatment == "G" ~ 7,
+                                    pso.psa.data$treatment == "H" ~ 8,
+                                    pso.psa.data$treatment == "I" ~ 9,
+                                    pso.psa.data$treatment == "J" ~ 10,)
 
-### Compute PoS, where success is defined as achieving statistical and clinical significance.
-get.pos(fitted.jags.mod = jags.fit, trt.num = 2, mvn = FALSE, nt = 9, piC = 0.09, n = 60, delta = 2.5, niters=1000)
+### create arm index for each study
+pso.psa.data$arm_ind <- (pso.psa.data %>% group_by(study) %>% summarize(arm_ind = 1:length(study)))$arm_ind
+
+### prepare data for UNMA with 2 indications
+ns <- max(pso.psa.data$study)
+nt <- max(pso.psa.data$treatment)
+na <- (pso.psa.data %>% group_by(study) %>% summarize(na = length(study)))$na
+r <- NULL; for(i in 1:4){r <- cbind(r, (pso.psa.data %>% group_by(study) %>% summarise(r=r[i]))$r)}
+n <- NULL; for(i in 1:4){n <- cbind(n, (pso.psa.data %>% group_by(study) %>% summarise(n=n[i]))$n)}
+t <- NULL; for(i in 1:4){t <- cbind(t, (pso.psa.data %>% group_by(study) %>% summarise(t=treatment[i]))$t)}
+indication <- rep(c(1,2), t((pso.psa.data %>% group_by(indication) %>% summarise(length(unique(study))))[,2]))
+class <- pso.psa.data$drug.class
+
+### Fit model! 
+params = c("d","sd","rho","sdd","d.new")
+init.vals <- list(d = c(NA,NA,rep(0,(nt-1)*2)))
+data <- list(ns = ns, r = r, t = t, n = n, nt=nt,indication=indication, na = na)
+set.seed(1994)
+jags.fit.mvn =jags(data = data, n.burnin = 10000, n.iter = 60000, n.thin = 1, jags.module = "glm",
+                   n.chains = 2, parameters.to.save = params, model.file = paste(work.dir,"mvn-random-effects-LN.txt",sep=""))
+
+### Format results
+mvn.dat <- data.frame(round(jags.fit.mvn$BUGSoutput$summary[,3:7],3))[grep("d\\[", rownames(jags.fit.mvn$BUGSoutput$summary)),][1:20,]
+ind <- c(seq(1,nt*2-1,2),seq(2,2*nt,2))
+mvn.dat <- mvn.dat[ind,]
+
+### Compute PoS, where success is defined as achieving statistical and clinical significance. Note that treatment 5 = treatment "E" in the manuscript.
+get.pos(fitted.jags.mod = jags.fit.mvn, trt.num = 5, mvn = TRUE, nt = 10, piC = 0.10, n = 60, delta = 2.96*0.80, niters=10000)
 
 #renv::snapshot()

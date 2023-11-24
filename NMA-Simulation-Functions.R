@@ -17,7 +17,7 @@ library(ggthemes)
 library(ggplot2)
 
 # specify directory for jags scripts
-work.dir <- "placeholder"
+work.dir <- "./"
 jags.script.dir <- paste(work.dir, "JAGS-Scripts/",sep="")
 
 #------------------------------------------------------#
@@ -205,7 +205,7 @@ fit.2ind.mod <- function(dat, random = F, sd.prior = c("unif","HN","Ht","LN"), c
                          mod.type = c("bvn", "bvn-class", "bvn-int", "mvn", "mvn-class", "mvn-int", "mixed", "mixed-class", "mixed-int")){
   
   ### Identify appropriate jags script based on model type and prior
-  jags.script <- paste("Two Indication Models/",mod.type,"-random-effects-",sd.prior,".txt",sep="")
+  jags.script <- paste(mod.type,"-random-effects-",sd.prior,".txt",sep="")
 
   ### Prepare data for NMA
   ns <- length(unique(dat$study)) # number of studies
